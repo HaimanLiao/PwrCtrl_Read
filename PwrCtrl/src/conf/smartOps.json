@@ -1,0 +1,35 @@
+{
+	"FanTime": 1,
+	"PduCount": 2,
+	"ModCount": 3,
+	"PDU": [{
+		"No": 1,
+		"Relay1Times": 0,
+		"Relay2Times": 0,
+		"Relay3Times": 0,
+		"Relay4Times": 0,
+		"Relay5Times": 0,
+		"Relay6Times": 0
+	}, {
+		"No": 2,
+		"Relay1Times": 0,
+		"Relay2Times": 0,
+		"Relay3Times": 0,
+		"Relay4Times": 0,
+		"Relay5Times": 0,
+		"Relay6Times": 0
+	}],
+	"Mod": [{
+		"SN": "1",
+		"GroupId": 1,
+		"WorkTime": 0
+	}, {
+		"SN": "2",
+		"GroupId": 2,
+		"WorkTime": 0
+	}, {
+		"SN": "3",
+		"GroupId": 3,
+		"WorkTime": 0
+	}]
+}

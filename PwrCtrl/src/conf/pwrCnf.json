@@ -1,0 +1,66 @@
+{
+	"PowerType": 2,
+	"PowerCount": 6,
+	"PowerMax": 3600,
+	"PowerUnitCount": 2,
+	"PduRelayCount": 6,
+	"PduTempLevel": 80,
+	"PduType": 1,
+	"PduCount": 12,
+	"ModType": 5,
+	"ModCount": 12,
+	"ModOverVol": 260,
+	"ModUnderVol": 200,
+	"Mod": [{
+		"SN": "1",
+		"GroupId": 1
+	}, {
+		"SN": "2",
+		"GroupId": 2
+	}, {
+		"SN": "3",
+		"GroupId": 3
+	}, {
+		"SN": "4",
+		"GroupId": 4
+	}, {
+		"SN": "5",
+		"GroupId": 5
+	}, {
+		"SN": "6",
+		"GroupId": 6
+	}, {
+		"SN": "7",
+		"GroupId": 7
+	}, {
+		"SN": "8",
+		"GroupId": 8
+	}, {
+		"SN": "9",
+		"GroupId": 9
+	}, {
+		"SN": "10",
+		"GroupId": 10
+	}, {
+		"SN": "11",
+		"GroupId": 11
+	}, {
+		"SN": "12",
+		"GroupId": 12
+	}],
+	"FanCount": 2,
+	"FanType": 1,
+	"Sensors": [{
+		"tempEn": 0,
+		"humiEn": 0,
+		"liqEn": 1,
+		"atmoEn": 0,
+		"gyroEn": 0,
+		"doorEn": 1,
+		"tempLevel": 0,
+		"humiLevel": 0,
+		"atmoLevel": 0,
+		"gyroLevel": 0
+	}],
+	"OTAStep":3
+}

@@ -1,0 +1,2 @@
+MARCH=pc
+INSTDIR=/nfsroot
