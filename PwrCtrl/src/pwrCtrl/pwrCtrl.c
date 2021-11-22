@@ -918,7 +918,7 @@ static void FlushOtherInfo()
 	/* 前端接触器控制 */
 	if (g_pwrPri.isEMC == 0)
 	{
-		for (i = 0; i < g_unitPara.gunNum; i++)
+		for (i = 0; i < g_unitPara.gunNum; i++)//lhm: 检查是否有枪输出
 		{
 			if ((GetChgStep(i) != CHG_MAIN_FREE) && (GetChgStep(i) != CHG_MAIN_STOP)
 				&& (GetChgStep(i) != CHG_MAIN_EMC_STOP))
@@ -2083,7 +2083,7 @@ int PwrCtrl_SetChgUI(int vol, int cur, int pwr, int gunId)
 		{
 			vol = GetUnitAllowVolMin();
 		}
-		if (cur > GetEVCurMax(gunId))		// 与整流柜最大输出电流做比较
+		if (cur > GetEVCurMax(gunId))		// 与整流柜最大输出电流做比较//lhm: 该枪最大允许电流
 		{
 			cur = GetEVCurMax(gunId);
 		}

@@ -124,18 +124,20 @@ typedef struct
 *                                  Extern
 * *******************************************************************************
 */
-int PwrCtrl_SetChgAllow(int vol, int cur, int pwrMax, int gunPwr, int gunId);
-int PwrCtrl_SetChgUI(int vol, int cur, int pwr, int gunId);
-void PwrCtrl_SetUnitPara(UNIT_PARA_STRUCT unit);
+int PwrCtrl_SetChgAllow(int vol, int cur, int pwrMax, int gunPwr, int gunId);	//lhm: 修改g_chgInfo[GUN_DC_MAX_NUM]（设置车端最大输出能力）
+int PwrCtrl_SetChgUI(int vol, int cur, int pwr, int gunId);						//lhm: 修改g_chgInfo[GUN_DC_MAX_NUM]（设置枪需求电压、电流、功率）
+void PwrCtrl_SetUnitPara(UNIT_PARA_STRUCT unit);	//lhm: 修改g_unitPara以及初始化matrix.c接口---Matrix_Init函数（输入参数 + 调用modCtrl.c接口）
+													//lhm: （设置整流柜参数）
 void PwrCtrl_GetUnitPara(UNIT_PARA_STRUCT *pUnit);
 int PwrCtrl_GetChgInfo(CHG_INFO_STRUCT *pChg, int gunId);
-int PwrCtrl_GetTotalPwrOut();
-int PwrCtrl_GetChgIsBusy();
-int PwrCtrl_LimitPower(int pwr);
-int PwrCtrl_StartStop(int ctrl, int stopReason, int gunId);
-void PwrCtrl_EMCStop(int stopReason);
-int PwrCtrl_FaultStop(int stopReason, int gunId);
-int PwrCtrl_GetEVSEPwrMax(int gunId);
+int PwrCtrl_GetTotalPwrOut();						//lhm: 读取g_chgInfo[GUN_DC_MAX_NUM]（获取所有枪输出的总功率）
+int PwrCtrl_GetChgIsBusy();							//lhm: 读取g_chgInfo[GUN_DC_MAX_NUM]（所有的枪是否都空闲）
+int PwrCtrl_LimitPower(int pwr);					//lhm: 修改g_unitPara（限功率）
+int PwrCtrl_StartStop(int ctrl, int stopReason, int gunId);	//lhm: 修改g_chgInfo[GUN_DC_MAX_NUM]和g_pwrPri
+															//lhm: （设置枪的停止和启动，ctrl是CHG_START或CHG_STOP）
+void PwrCtrl_EMCStop(int stopReason);						//lhm: 修改、读取g_chgInfo[GUN_DC_MAX_NUM]和g_pwrPri（紧急停止，紧急断开前端接触器）
+int PwrCtrl_FaultStop(int stopReason, int gunId);			//lhm: 修改、读取g_chgInfo[GUN_DC_MAX_NUM]和g_pwrPri（整流柜故障停止）
+int PwrCtrl_GetEVSEPwrMax(int gunId);						//lhm: 读取g_chgInfo[GUN_DC_MAX_NUM]（获得整流柜对于某枪的最大功率）
 
 void PwrCtrl_Deal();
 void PwrCtrl_Init();
