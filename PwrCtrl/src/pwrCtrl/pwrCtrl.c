@@ -905,7 +905,7 @@ static int GetPwrRatio()
 * UPDATE	:
 * *******************************************************************************
 */
-static void FlushOtherInfo()
+static void FlushOtherInfo()//lhm: 根据其他全局变量以及功能接口，更新全局变量g_flushData和g_chgInfo
 {
 	int i, j;
 	int gunVol, gunCur;
@@ -916,7 +916,7 @@ static void FlushOtherInfo()
 	int acRelayFlag = 0;
 
 	/* 前端接触器控制 */
-	if (g_pwrPri.isEMC == 0)
+	if (g_pwrPri.isEMC == 0)//lhm: 非EMC停止状态
 	{
 		for (i = 0; i < g_unitPara.gunNum; i++)//lhm: 检查是否有枪输出
 		{
@@ -1005,8 +1005,8 @@ static void FlushOtherInfo()
 			grpNum = g_chgResOld[i].freeGrpNum;
 			for (j = 0; j < grpNum; j++)
 			{
-				grpId[j] = g_chgResOld[i].freeGrpId[j];
-				g_pGrpFun->GetGroupUI(grpId[j], &grpVol, &grpCur);
+				grpId[j] = g_chgResOld[i].freeGrpId[j];//lhm: 该释放的模块没有释放（还连着枪）
+				g_pGrpFun->GetGroupUI(grpId[j], &grpVol, &grpCur);//lhm: 这句应该是多余的（但没有影响代码运行）
 
 //				DEBUG("Flush CHG_MAIN_STOP i = %d, grpId = %d, grpVol = %d, grpCur = %d", i, grpId[j], grpVol, grpCur);
 			}
@@ -1017,7 +1017,7 @@ static void FlushOtherInfo()
 			for (j = 0; j < grpNum; j++)
 			{
 				grpId[j] = g_chgResOld[i].groupId[j];
-				g_pGrpFun->GetGroupUI(grpId[j], &grpVol, &grpCur);		// 获取该组模块电压、电流
+				g_pGrpFun->GetGroupUI(grpId[j], &grpVol, &grpCur);		// 获取该组模块电压、电流//lhm: 这句应该是多余的（但没有影响代码运行）
 
 //				DEBUG("Flush CHG_MAIN_RUN_POLICY i = %d, grpId = %d, grpVol = %d, grpCur = %d", i, grpId[j], grpVol, grpCur);
 			}
@@ -1028,7 +1028,7 @@ static void FlushOtherInfo()
 			for (j = 0; j < grpNum; j++)
 			{
 				grpId[j] = g_chgResOld[i].groupId[j];
-				g_pGrpFun->GetGroupUI(grpId[j], &grpVol, &grpCur);		// 获取该组模块电压、电流
+				g_pGrpFun->GetGroupUI(grpId[j], &grpVol, &grpCur);		// 获取该组模块电压、电流//lhm: 这句应该是多余的（但没有影响代码运行）
 
 //				DEBUG("Flush CHG_MAIN_CHANGE i = %d, grpId = %d, grpVol = %d, grpCur = %d", i, grpId[j], grpVol, grpCur);
 			}
@@ -1047,7 +1047,7 @@ static void FlushOtherInfo()
 			{
 				group.id = grpId[j];
 				g_pGrpFun->GetGroupInfo(&group);
-				stopReason = CheckChgMdlSts(i, group);				// 检查模块故障停止
+				stopReason = CheckChgMdlSts(i, group);				// 检查模块故障停止//lhm: STOP_NORMAL = 0（NORMAL）
 				if (stopReason)
 				{
 					SetChgStep(i, CHG_MAIN_STOP);
@@ -1073,8 +1073,8 @@ static void FlushOtherInfo()
 			continue;
 		}
 
-		cur = 0;
-		curMax = 0;
+		cur = 0;		//lhm: 单个模块可以输出的最大电流
+		curMax = 0;		//lhm: 桩端（枪连接的所有模块）可以输出的最大电流（总电流）
 		pwrMax = 0;
 		grpNum = 0;
 
@@ -1086,7 +1086,8 @@ static void FlushOtherInfo()
 				grpNum++;
 				if (cur == 0)
 				{
-					cur = g_pGrpFun->GetGroupMaxCurByVol(grpId[0], GetChgVolOut(i));
+					cur = g_pGrpFun->GetGroupMaxCurByVol(grpId[0], GetChgVolOut(i));//lhm: 获取当前电压下，模块能够输出的最大电流
+																					//lhm: i是枪id的轮询
 				}
 			}
 			else
@@ -1298,7 +1299,7 @@ static int ModGrpChangeDo(CHG_POLICY_RES_STRUCT res, int gunId)
 			ctrlRlyCount = resAry.relayNum;
 			for (j = 0; j < resAry.relayNum; j++)
 			{
-				RelayCtrl_SetSwitch(resAry.relaySW[j], resAry.relayId[j]);		// 发送指令，断开对应的继电器
+				RelayCtrl_SetSwitch(resAry.relaySW[j], resAry.relayId[j]);		// 发送指令，断开对应的继电器//lhm: 断开或者闭合
 				if (RelayCtrl_GetCtrlBack(resAry.relayId[j]) == RELAY_BACK_OK)		// 判断继电器反馈状态
 				{
 					tmpRlyCount++;
@@ -1339,7 +1340,7 @@ static int ModGrpChangeDo(CHG_POLICY_RES_STRUCT res, int gunId)
 * UPDATE	: 
 * *******************************************************************************
 */
-static int ModGrpStopDo(CHG_POLICY_STRUCT resAry, int gunId)
+static int ModGrpStopDo(CHG_POLICY_STRUCT resAry, int gunId)//lhm: 枪停止充电则其策略结构体的freeGrpNum便是其之前所连接的所有模块
 {
 	int ret = RESULT_ERR;
 	int j = 0;
@@ -1425,6 +1426,9 @@ static int ChgPolicyDo(int step, int gunId)
 	else  if (step == CHG_MAIN_RUN)
 	{
 		/* 充电过程中，枪需求逐渐减小，如果有空闲模块则可以切出来 */
+		//lhm: 以下循环全部没有赋值语句，相当于什么都没做（不支持动态分配）
+		//lhm: 意味着在充电过程中，传给matrix接口的枪功率需求保持不变（即刚开始最大的功率需求）
+		//lhm: 但g_chgInfo[GUN_DC_MAX_NUM]中的功率需求应该是根据桩端传来的数据实时改变的
 		for (i = 0; i < g_unitPara.gunNum; i++)
 		{
 			if (GetChgStep(i) == CHG_MAIN_RUN)
@@ -1440,10 +1444,11 @@ static int ChgPolicyDo(int step, int gunId)
 						break;
 					}
 				}
-			}
+			} 
 		}
 
 		if (gun.gunId == 0)		// 主要是为了与上面互斥，不能同步计算策略
+								//lhm: 这个if判断多余，因为如果是CHG_MAIN_RUN则gun.gunId一定是 = 0的
 		{
 			if ((abs(get_timetick() - g_pwrPri.stopTick) > WAIT_RESTART_POLICY_TIME)
 													&& g_pwrPri.stopTick)	// 枪启动或停止超过5min，重新看下是否需要功率分配
@@ -1451,10 +1456,10 @@ static int ChgPolicyDo(int step, int gunId)
 				int grpUseNum = 0;
 				for (i = 0; i < g_unitPara.gunNum; i++)
 				{
-					grpUseNum += g_res.resAry[i].groupNum;`
+					grpUseNum += g_res.resAry[i].groupNum;
 				}
 
-				if (grpUseNum < WaitMdlPowerOn())		// 有模块空闲，可以分给需要的枪
+				if (grpUseNum < WaitMdlPowerOn())		// 有模块空闲，可以分给需要的枪//lhm: 正在使用的模块数 < 模块总在线数
 				{
 					for (i = 0; i < g_unitPara.gunNum; i++)
 					{
@@ -1467,6 +1472,8 @@ static int ChgPolicyDo(int step, int gunId)
 							{
 								gun.gunId = i + 1;
 								gun.pwrNeed = GetEVPwrMax(i);	// 用车端最大值重新策略一次
+																//lhm: 应该是之后的输出仍然会受桩端限制，但会在桩的功率限制内尽可能满足枪
+																//lhm: 枪实际需求 < 桩最大可提供
 								DEBUG("power change in");
 								break;
 							}
@@ -1479,7 +1486,7 @@ static int ChgPolicyDo(int step, int gunId)
 		}
 	}
 
-	if (gun.gunId == 0)		// 没有枪需要策略计算
+	if (gun.gunId == 0)		// 没有枪需要策略计算//lhm: 没有CHG_MAIN_START，CHG_MAIN_RUN以及CHG_MAIN_STOP
 	{
 		return RESULT_ERR;
 	}
@@ -1560,7 +1567,7 @@ static int ChgPolicyDo(int step, int gunId)
 	}
 	else if (g_res.result == POLICY_NOCHANGE)	// 分配不变，这里可能有问题
 	{
-		if (g_res.resAry[i].pwrMax)
+		if (g_res.resAry[i].pwrMax)//lhm: 这个i的值是多少？
 		{
 			SetChgStep(gun.gunId-1, CHG_MAIN_RUN);
 		}
@@ -1646,7 +1653,7 @@ static void ChgStartDo(int gunId)
 		{
 			if ((GetChgStep(i) == CHG_MAIN_RUN_POLICY)	// 防止出现有些枪还在工作就算法变化了
 				|| (GetChgStep(i) == CHG_MAIN_CHANGE)
-				|| (GetChgStep(i) == CHG_MAIN_STOP))
+				|| (GetChgStep(i) == CHG_MAIN_STOP))	//lhm: STOP是“枪停止中”，不是“枪空闲”
 			{
 				return;
 			}
@@ -1970,7 +1977,7 @@ static void ChgEMCStopDo(int gunId)
 */
 static void PwrCtrlDeal()
 {
-	static int gunId = 0;				// 枪号,0开始计数
+	static int gunId = 0;				// 枪号,0开始计数//lhm: static关键字指明gunId是一个局部全局变量
 
 	if (abs(get_timetick() - g_pwrPri.flushTick) > 200)
 	{
@@ -1978,7 +1985,7 @@ static void PwrCtrlDeal()
 
 		ChgPolicyDo(CHG_MAIN_RUN, 0xFF);	// 检查桩端需求是否满足车端需求
 
-		FlushOtherInfo();					// 不断的刷新一些外部数据
+		FlushOtherInfo();					// 不断的刷新一些外部数据//lhm: 唯一调用FlushOtherInfo()地方
 	}
 
 	gunId++;
