@@ -1115,7 +1115,7 @@ static void FlushOtherInfo()//lhm: 根据其他全局变量以及功能接口，
 			pwrMax = g_res.resAry[i].pwrMax;
 		}
 
-		if ((GetPwrRatio() < 100) && (GetPwrRatio() > 0))		// 限功率了
+		if ((GetPwrRatio() < 100) && (GetPwrRatio() > 0))		// 限功率了//lhm: 不能100%输出
 		{
 			DEBUG("ratio = %d", GetPwrRatio());
 		//	pwrMax = pwrMax * GetPwrRatio() / 100;
@@ -1407,6 +1407,14 @@ static int ModGrpStopDo(CHG_POLICY_STRUCT resAry, int gunId)//lhm: 枪停止充�
 * UPDATE	: 
 * *******************************************************************************
 */
+/*lhm:
+该函数的输入参数只能是CHG_MAIN_START，CHG_MAIN_RUN和CHG_MAIN_STOP，其中
+1、CHG_MAIN_START是让枪gunId开始充电---以gun.pwrNeed = GetEVPwrMax(gunId)参与模块分配；
+2、CHG_MAIN_STOP是让枪gunId停止充电---以gun.pwrNeed = 0参与模块分配
+3、CHG_MAIN_RUN是用来查询正在充电的枪“if (GetChgStep(i) == CHG_MAIN_RUN)”，在有模块空闲的前提下是否存在桩端不满足车端需求的枪
+	a) 如果存在则以gun.pwrNeed = GetEVPwrMax(i)参与模块分配；
+	b)不存在或者没有空闲模块则返回错误；
+*/ 
 static int ChgPolicyDo(int step, int gunId)
 {
 	int i = 0;
@@ -1423,7 +1431,7 @@ static int ChgPolicyDo(int step, int gunId)
 		gun.gunId = gunId + 1;
 		gun.pwrNeed = 0;
 	}
-	else  if (step == CHG_MAIN_RUN)
+	else if (step == CHG_MAIN_RUN)//lhm: 参数CHG_MAIN_RUN不针对具体某一把枪，其只是用来检查桩端需求是否满足车端需求
 	{
 		/* 充电过程中，枪需求逐渐减小，如果有空闲模块则可以切出来 */
 		//lhm: 以下循环全部没有赋值语句，相当于什么都没做（不支持动态分配）
@@ -1456,7 +1464,7 @@ static int ChgPolicyDo(int step, int gunId)
 				int grpUseNum = 0;
 				for (i = 0; i < g_unitPara.gunNum; i++)
 				{
-					grpUseNum += g_res.resAry[i].groupNum;
+					grpUseNum += g_res.resAry[i].groupNum;//lhm: grpUseNum是所有正在使用的模块
 				}
 
 				if (grpUseNum < WaitMdlPowerOn())		// 有模块空闲，可以分给需要的枪//lhm: 正在使用的模块数 < 模块总在线数
@@ -1471,9 +1479,9 @@ static int ChgPolicyDo(int step, int gunId)
 							&& ((GetEVSEPwrMax(i) - GetChgPwrNeed(i)) < 150))
 							{
 								gun.gunId = i + 1;
+								//lhm: 参数CHG_MAIN_RUN不针对具体某一把枪，它只是用来检查桩端需求是否满足车端需求
+								//lhm: 并把第一把“桩端需求不满足车端需求”的枪给拎出来---gun.gunId = i + 1
 								gun.pwrNeed = GetEVPwrMax(i);	// 用车端最大值重新策略一次
-																//lhm: 应该是之后的输出仍然会受桩端限制，但会在桩的功率限制内尽可能满足枪
-																//lhm: 枪实际需求 < 桩最大可提供
 								DEBUG("power change in");
 								break;
 							}
@@ -1486,12 +1494,14 @@ static int ChgPolicyDo(int step, int gunId)
 		}
 	}
 
-	if (gun.gunId == 0)		// 没有枪需要策略计算//lhm: 没有CHG_MAIN_START，CHG_MAIN_RUN以及CHG_MAIN_STOP
+	if (gun.gunId == 0)		// 没有枪需要策略计算
+							//lhm: 没有CHG_MAIN_START，CHG_MAIN_RUN以及CHG_MAIN_STOP
+							//lhm: 或者有CHG_MAIN_RUN，但是“桩端需求全部满足车端需求”
 	{
 		return RESULT_ERR;
 	}
 
-	if (GetChgStep(gun.gunId-1) == CHG_MAIN_STOP)		// 需要停止，则直接策略计算，不会影响到其他枪
+	if (GetChgStep(gun.gunId-1) == CHG_MAIN_STOP)		// 需要停止，则直接策略计算，不会影响到其他枪//lhm: gun.pwrNeed = 0
 	{
 
 	}
@@ -1548,7 +1558,7 @@ static int ChgPolicyDo(int step, int gunId)
 					SetChgStep(i, CHG_MAIN_STOP);
 					memcpy(&g_chgResOld[i], &g_res.resAry[i], sizeof(CHG_POLICY_STRUCT));
 
-					if (GetChgStep(i) != CHG_MAIN_STOP)
+					if (GetChgStep(i) != CHG_MAIN_STOP)//lhm: 应该是多余的（应该也不会是基于线程锁的考虑）
 					{
 						SetChgStopReason(i, STOP_PWRPOLICY);
 						DEBUG("gunId = %d, ChgPolicyDo STOP_PWRPOLICY", i);
@@ -1567,7 +1577,8 @@ static int ChgPolicyDo(int step, int gunId)
 	}
 	else if (g_res.result == POLICY_NOCHANGE)	// 分配不变，这里可能有问题
 	{
-		if (g_res.resAry[i].pwrMax)//lhm: 这个i的值是多少？
+		if (g_res.resAry[i].pwrMax)//lhm: 这个i的值应该是gun.gunId - 1
+		//lhm: 这里的if判断是确保枪之前不是CHG_MAIN_STOP（否则对已经是CHG_MAIN_STOP的枪再次进行CHG_MAIN_STOP会出错）
 		{
 			SetChgStep(gun.gunId-1, CHG_MAIN_RUN);
 		}
@@ -1653,7 +1664,7 @@ static void ChgStartDo(int gunId)
 		{
 			if ((GetChgStep(i) == CHG_MAIN_RUN_POLICY)	// 防止出现有些枪还在工作就算法变化了
 				|| (GetChgStep(i) == CHG_MAIN_CHANGE)
-				|| (GetChgStep(i) == CHG_MAIN_STOP))	//lhm: STOP是“枪停止中”，不是“枪空闲”
+				|| (GetChgStep(i) == CHG_MAIN_STOP))	//lhm: STOP是“枪停止中（需要执行模块切出等操作）”，不是“枪空闲”
 			{
 				return;
 			}
@@ -1749,7 +1760,7 @@ static void ChgRunDo(int gunId)
 
 	mdlCurMax = 0;
 	gunRes = g_res.resAry[gunId].gunRes;
-	if (((GetChgStep(gunId) == CHG_MAIN_CHANGE) && (gunRes == CHANGE_IN))
+	if (((GetChgStep(gunId) == CHG_MAIN_CHANGE) && (gunRes == CHANGE_IN))//lhm: 模块切入切出中
 		|| (GetChgStep(gunId) == CHG_MAIN_RUN_POLICY))
 	{
 		grpNum = g_chgResOld[gunId].groupNum;
@@ -1895,11 +1906,11 @@ static void ChgRunPolicyDo(int gunId)
 */
 static void ChgStopDo(int gunId)
 {
-	static unsigned long stopTick[GUN_DC_MAX_NUM] = {0};
+	static unsigned long stopTick[GUN_DC_MAX_NUM] = {0};//lhm: 静态局部变量
 	int ret = POLICY_ERR;
 	int i = 0;
 
-	if (stopTick[gunId] == 0)
+	if (stopTick[gunId] == 0)//lhm: 该枪还没有进行ChgPolicyDo(CHG_MAIN_STOP, gunId)
 	{
 		/* 策略里将这个释放出去 */
 		ret = ChgPolicyDo(CHG_MAIN_STOP, gunId);
@@ -1986,6 +1997,11 @@ static void PwrCtrlDeal()
 		ChgPolicyDo(CHG_MAIN_RUN, 0xFF);	// 检查桩端需求是否满足车端需求
 
 		FlushOtherInfo();					// 不断的刷新一些外部数据//lhm: 唯一调用FlushOtherInfo()地方
+		//lhm: 前端AC接触器的断开与闭合；
+		//lhm: 更新每把枪的电压电流输出，更新每把枪各自的桩端最大功率；
+		//lhm: 检查每把枪连接的各个模块故障，如果有故障则 “SetChgStopReason(i, stopReason)”;
+
+		//lhm: 该函数的执行依据主要是---“是否是EMC急停（相关变量改变），各把枪的模块连接使用情况（matrix接口返回的策略分配结果）”
 	}
 
 	gunId++;
@@ -2000,24 +2016,24 @@ static void PwrCtrlDeal()
 			ChgFreeDo(gunId);
 			break;
 		case CHG_MAIN_START:			// 枪准备启动
-			ChgStartDo(gunId);
+			ChgStartDo(gunId);			//lhm: ChgPolicyDo(CHG_MAIN_START, gunId);
 			break;
-		case CHG_MAIN_CHANGE:			// 该枪功率正在切换中
+		case CHG_MAIN_CHANGE:			// 该枪功率正在切换中//lhm: 切入
 			ChgChangeDo(gunId);			// 这里有个BUG，切换时不能影响这把枪不需要动的模块的输出
 			ChgRunDo(gunId);
 			break;
-		case CHG_MAIN_RUN:				// 正常输出
-			ChgRunDo(gunId);
+		case CHG_MAIN_RUN:				// 正常输出//lhm: 没有切入和切出
+			ChgRunDo(gunId);			//lhm: 枪正常充电中，控制模块输出（控制---该枪已经分得的模块按车端实际需求输出）
 			break;
-		case CHG_MAIN_RUN_POLICY:		// 充电时进行策略计算，枪还需要继续输出
+		case CHG_MAIN_RUN_POLICY:		// 充电时进行策略计算，枪还需要继续输出//lhm: 切出
 			ChgRunPolicyDo(gunId);
 			ChgRunDo(gunId);
 			break;
 		case CHG_MAIN_STOP:				// 枪充电停止
-			ChgStopDo(gunId);
+			ChgStopDo(gunId);			//lhm: ChgPolicyDo(CHG_MAIN_STOP, gunId)
 			break;
 		case CHG_MAIN_EMC_STOP:			// 安全相关的停止，如急停、门禁、限位等，需要禁止停止
-			ChgEMCStopDo(gunId);
+			ChgEMCStopDo(gunId);		//lhm: ChgStopDo(gunId);
 			break;
 		default:
 			break;
@@ -2323,7 +2339,8 @@ int PwrCtrl_StartStop(int ctrl, int stopReason, int gunId)
 		}
 
 		DEBUG("gunId = %d, isStop = %d", gunId, g_pwrPri.isStop[gunId]);
-		if (g_pwrPri.isEMC || g_pwrPri.isStop[gunId])			// EMC停止，禁止启动 
+		if (g_pwrPri.isEMC || g_pwrPri.isStop[gunId])			// EMC停止，禁止启动
+		//lhm: isEMC决定所有枪是否可以启动，isStop[GUN_DC_MAX_NUM]可针对某一把枪设置是否可以启动
 		{
 			return RESULT_OK;
 		}

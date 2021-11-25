@@ -102,7 +102,7 @@ typedef struct
 	unsigned int 		gunId;
 	unsigned int 		gunRes;						// CHANGE_NO CHANGE_IN CHANGE_OUT
 
-	unsigned int 		pwrMax;						// 分配好的功率,0.1kW
+	unsigned int 		pwrMax;						// 分配好的功率,0.1kW//lhm: 分配到的所有模块最大可输出的总功率
 
 	unsigned int 		groupNum;
 	unsigned int 		groupId[GROUP_MAX_NUM];		// 分配好的模组编号//lhm: 应该是模块编号

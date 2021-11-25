@@ -493,7 +493,11 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		ZmqCtrl_Deal();
+		ZmqCtrl_Deal();	//lhm: 存在一个zmq接收线程，可以保存接收到的数据，所以不会出现自己疑惑的情况
+						//lhm: “在运行PwrCtrl_Deal()时，由于没有执行ZmqCtrl_Deal()，导致在此期间桩端发送的数据没有被接收”
+						//lhm: ZmqCtrl_Deal()只是读取接收数据区，而接收数据区的更新是由zmq接收线程负责的
+						//lhm: ZmqCtrl_Deal()的任务是把接收数据区的内容移到其他接口（如PwrCtrl_Deal()）的数据区（全局变量）
+						//lhm: 之后其他接口（如PwrCtrl_Deal()）再根据自己数据区的内容变化情况进行相关操作
 		PwrCtrl_Deal();
 		FanCtrl_Deal();
 		Fault_Deal();

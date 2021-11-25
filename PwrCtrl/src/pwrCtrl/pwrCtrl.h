@@ -50,9 +50,11 @@ typedef enum
 	CHG_MAIN_FREE = 0,			// 枪空闲
 
 	CHG_MAIN_START,				// 枪准备启动，进行功率分配
-	CHG_MAIN_CHANGE,			// 功率切换中，切入切出
+
+	CHG_MAIN_CHANGE,			// 功率切换中，切入切出			//lhm: 对应策略分配结果的CHANGE_IN
+	CHG_MAIN_RUN_POLICY,		// 枪正常充电中发生了策略分配	//lhm: 对应策略分配结果的CHANGE_OUT
+								//lhm: 可以认为在这两个阶段下，枪i连接的模块g_res[i]是未定的（在原来连接的基础上g_resOld[i]进行切入切出）
 	CHG_MAIN_RUN,				// 枪正常充电中
-	CHG_MAIN_RUN_POLICY,		// 枪正常充电中发生了策略分配//lhm: 实际中不支持
 
 	CHG_MAIN_STOP,				// 枪停止中
 	CHG_MAIN_EMC_STOP,			// 跟安全类相关的紧急停止
@@ -92,15 +94,15 @@ typedef struct
 	unsigned char pwrSta;	// 状态，0-未知，1-运行、暂停，2-停止, 3-故障
 	unsigned char pwrStep;	// 阶段，参考CHG_MAIN_STATUS_ENUM
 
-	int 	ChgPwrMax;		// 枪端实时功率
+	int 	ChgPwrMax;		// 枪端实时功率//lhm: 没有用到
 	int 	EVPwrMax;		// 车端最大功率
 	int 	EVVolMax;		// 车端最大电压
 	int 	EVCurMax;		// 车端最大电流
 
 	int 	EVSEPwrMax;		// 车端最大功率//lhm: 应该是桩端最大功率（这个可以修改，用于桩端根据实际情况限制枪的功率输出）
-	int 	EVSEVolMax;		// 车端最大电压
-	int 	EVSEVolMin;		// 车端最小电压
-	int 	EVSECurMax;		// 车端最大电流
+	int 	EVSEVolMax;		// 车端最大电压//lhm: 桩端···
+	int 	EVSEVolMin;		// 车端最小电压//lhm: 桩端···
+	int 	EVSECurMax;		// 车端最大电流//lhm: 桩端···
 
 	int 	volNeed;		// 需求电压
 	int 	curNeed;		// 需求电流
@@ -115,7 +117,7 @@ typedef struct
 	int 	stopReason;		// DTC故障码
 
 	int 	mode;			// 枪处于高压模式还是低压模式
-}CHG_INFO_STRUCT;
+}CHG_INFO_STRUCT;//lhm: 车端先上发最大需求，之后车桩交互协商得到实时需求---“功率输出按实时需求，功率模块分配按车端最大功率（不是按实时需求）”
 
 #pragma pack()
 
@@ -148,7 +150,7 @@ int PwrCtrl_FaultStop(int stopReason, int gunId);			//lhm: 修改、读取g_chgI
 //lhm: matrix.c中调用
 int PwrCtrl_GetEVSEPwrMax(int gunId);						//lhm: 读取g_chgInfo[GUN_DC_MAX_NUM]（获得整流柜对于某枪的最大功率）
 
-//lhm: 没有被调用
+//lhm: 没有调用
 void PwrCtrl_GetUnitPara(UNIT_PARA_STRUCT *pUnit);
 int PwrCtrl_LimitPower(int pwr);					//lhm: 修改g_unitPara（限功率）
 
