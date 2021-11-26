@@ -1694,19 +1694,20 @@ static void ChgChangeDo(int gunId)
 {
 	int i = 0;
 
-	/* 先处理运行中模块切出完成后，再处理刚充电的枪的模块切入 */
+	/* 先处理运行中模块切出完成后，再处理刚充电的枪的模块切入 *///lhm: 先处理切出（等待），再 “处理切入”
 	for (i = 0; i < g_unitPara.gunNum; i++)					
 	{
 		if (GetChgStep(i) == CHG_MAIN_RUN_POLICY)	// 需要先等待其他枪功率到位后才能CHANGE
-		{
+		{											// lhm: CHG_MAIN_RUN_POLICY阶段的切出
 			return;
 		}
 
 		if (((GetChgStep(i) == CHG_MAIN_CHANGE) 
-			|| (GetChgStep(i) == CHG_MAIN_STOP))
-			&& (g_res.resAry[i].gunRes == CHANGE_OUT))
+			|| (GetChgStep(i) == CHG_MAIN_STOP))//lhm: CHG_MAIN_STOP阶段的切出
+			&& (g_res.resAry[i].gunRes == CHANGE_OUT))//lhm: CHG_MAIN_STOP阶段不一定有切出，因为可能之前没有分配到模块，所有要判断CHANGE_OUT
 		{
 			if (g_res.resAry[gunId].gunRes == CHANGE_IN)	// 枪切出可以一起进行，但是需要先完成所有的切出再进行切入
+			//lhm: 这个判断应该多余（因为在ChgPolicyDo中，如果是CHANGE_IN，则会设置充电阶段CHG_MAIN_CHANGE）
 			{
 				return;
 			}
@@ -1729,7 +1730,7 @@ static void ChgChangeDo(int gunId)
 	}
 	else
 	{
-		if (ModGrpChangeDo(g_res, gunId) == RESULT_OK)		// 切换完成，可以开始充电了
+		if (ModGrpChangeDo(g_res, gunId) == RESULT_OK)		// 切换完成，可以开始充电了//lhm: 如果不是RESULT_OK则仍停在CHG_MAIN_CHANGE阶段
 		{
 			SetChgStep(gunId, CHG_MAIN_RUN);	
 			g_pwrPri.changeTick[gunId] = 0;
@@ -1760,7 +1761,7 @@ static void ChgRunDo(int gunId)
 
 	mdlCurMax = 0;
 	gunRes = g_res.resAry[gunId].gunRes;
-	if (((GetChgStep(gunId) == CHG_MAIN_CHANGE) && (gunRes == CHANGE_IN))//lhm: 模块切入切出中
+	if (((GetChgStep(gunId) == CHG_MAIN_CHANGE) && (gunRes == CHANGE_IN))//lhm: 处于“模块切入切出中”，使用原来连接的模块
 		|| (GetChgStep(gunId) == CHG_MAIN_RUN_POLICY))
 	{
 		grpNum = g_chgResOld[gunId].groupNum;
@@ -1769,7 +1770,7 @@ static void ChgRunDo(int gunId)
 			grpId[j] = g_chgResOld[gunId].groupId[j];
 			if (g_pGrpFun->GetGroupOnline(grpId[j]) == RESULT_OK)
 			{
-				if (mdlCurMax == 0)
+				if (mdlCurMax == 0)//lhm: 取一个模块在需求电压下的最大电流值
 				{
 					mdlCurMax = g_pGrpFun->GetGroupMaxCurByVol(grpId[j], vol);
 				}
@@ -1848,9 +1849,9 @@ static void ChgRunDo(int gunId)
 				g_pGrpFun->SetGroupUI(grpId[i], volOut, 10);
 			}
 		}
-		else										// 泄放等操作
+		else										//lhm: 需求电压vol = 0
 		{
-			g_pGrpFun->SetGroupUI(grpId[i], 0, 0);
+			g_pGrpFun->SetGroupUI(grpId[i], 0, 0);	// 泄放等操作
 		}
 	}
 }
@@ -1995,6 +1996,14 @@ static void PwrCtrlDeal()
 		g_pwrPri.flushTick = get_timetick();
 
 		ChgPolicyDo(CHG_MAIN_RUN, 0xFF);	// 检查桩端需求是否满足车端需求
+		/*lhm:
+		该函数的输入参数只能是CHG_MAIN_START，CHG_MAIN_RUN和CHG_MAIN_STOP，其中
+			1、CHG_MAIN_START是让枪gunId开始充电---以gun.pwrNeed = GetEVPwrMax(gunId)参与模块分配；
+			2、CHG_MAIN_STOP是让枪gunId停止充电----以gun.pwrNeed = 0参与模块分配
+			3、CHG_MAIN_RUN是用来查询正在充电的枪“if (GetChgStep(i) == CHG_MAIN_RUN)”，在有模块空闲的前提下是否存在桩端不满足车端需求的枪
+				a) 如果存在则----------------------以gun.pwrNeed = GetEVPwrMax(i)参与模块分配；
+				b)不存在或者没有空闲模块则返回错误；
+		*/ 
 
 		FlushOtherInfo();					// 不断的刷新一些外部数据//lhm: 唯一调用FlushOtherInfo()地方
 		//lhm: 前端AC接触器的断开与闭合；
@@ -2020,13 +2029,14 @@ static void PwrCtrlDeal()
 			break;
 		case CHG_MAIN_CHANGE:			// 该枪功率正在切换中//lhm: 切入
 			ChgChangeDo(gunId);			// 这里有个BUG，切换时不能影响这把枪不需要动的模块的输出
-			ChgRunDo(gunId);
+			ChgRunDo(gunId);			//lhm: 切入时，已经分得的模块从旧的策略结果得到
 			break;
 		case CHG_MAIN_RUN:				// 正常输出//lhm: 没有切入和切出
-			ChgRunDo(gunId);			//lhm: 枪正常充电中，控制模块输出（控制---该枪已经分得的模块按车端实际需求输出）
+			ChgRunDo(gunId);			//lhm: 枪正常充电中，控制模块输出（控制 “该枪已经分得的模块” 按车端实际需求输出）
+										//lhm: 策略分配结果没有切入切出时，已经分得的模块从当前策略结果得到（从旧的得到应该也一样）
 			break;
 		case CHG_MAIN_RUN_POLICY:		// 充电时进行策略计算，枪还需要继续输出//lhm: 切出
-			ChgRunPolicyDo(gunId);
+			ChgRunPolicyDo(gunId);		//lhm: 切出时，已经分得的模块也是从旧的策略结果得到
 			ChgRunDo(gunId);
 			break;
 		case CHG_MAIN_STOP:				// 枪充电停止
