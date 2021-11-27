@@ -1411,10 +1411,10 @@ static int ModGrpStopDo(CHG_POLICY_STRUCT resAry, int gunId)//lhm: 枪停止充�
 该函数的输入参数只能是CHG_MAIN_START，CHG_MAIN_RUN和CHG_MAIN_STOP，其中
 1、CHG_MAIN_START是让枪gunId开始充电---以gun.pwrNeed = GetEVPwrMax(gunId)参与模块分配；
 2、CHG_MAIN_STOP是让枪gunId停止充电---以gun.pwrNeed = 0参与模块分配
-3、CHG_MAIN_RUN是用来查询正在充电的枪“if (GetChgStep(i) == CHG_MAIN_RUN)”，在有模块空闲的前提下是否存在桩端不满足车端需求的枪
+3、CHG_MAIN_RUN是用来查询正在充电的枪，在有模块空闲的前提下是否存在桩端不满足车端需求的枪
 	a) 如果存在则以gun.pwrNeed = GetEVPwrMax(i)参与模块分配；
-	b)不存在或者没有空闲模块则返回错误；
-*/ 
+	b) 不存在或者没有空闲模块则返回错误；
+*/
 static int ChgPolicyDo(int step, int gunId)
 {
 	int i = 0;
@@ -1508,6 +1508,8 @@ static int ChgPolicyDo(int step, int gunId)
 	else
 	{
 		for (i = 0; i < g_unitPara.gunNum; i++)			// 先判断是否有枪正在策略分配
+														//lhm: 准确来说应该是---“是否正准备进行策略分配的部署”
+														//lhm: 因为策略分配的结果已经得到---即枪分到的模块id已得知，“正准备（下一步）进行继电器关合”
 		{
 			if ((GetChgStep(i) == CHG_MAIN_RUN_POLICY)
 			 	|| (GetChgStep(i) == CHG_MAIN_CHANGE))
@@ -1528,7 +1530,7 @@ static int ChgPolicyDo(int step, int gunId)
 	memcpy(&g_resOld, &g_res, sizeof(CHG_POLICY_RES_STRUCT));
 	g_res = Matrix_Policy(gun);
 	char string[2048] = {0};
-	MatrixPrint(g_res, string);
+	MatrixPrint(g_res, string); 
 	DEBUG("%s", string);
 	log_send("%s", string);
 
@@ -1550,7 +1552,7 @@ static int ChgPolicyDo(int step, int gunId)
 			{
 				if (g_res.resAry[i].pwrMax)
 				{
-					SetChgStep(i, CHG_MAIN_RUN_POLICY);
+					SetChgStep(i, CHG_MAIN_RUN_POLICY);//lhm: 通知并等待车端降完功率后，再进入到CHG_MAIN_CHANGE（否则一直处于CHG_MAIN_RUN_POLICY）
 					memcpy(&g_chgResOld[i], &g_resOld.resAry[i], sizeof(CHG_POLICY_STRUCT));
 				}
 				else	// 没有功率，停止
@@ -1869,7 +1871,7 @@ static void ChgRunDo(int gunId)
 * UPDATE	: 
 * *******************************************************************************
 */
-static void ChgRunPolicyDo(int gunId)
+static void ChgRunPolicyDo(int gunId)//lhm: 关于通知车端升降功率，应该是等待切入切出（CHG_MAIN_CHANGE）完成后才进行的
 {
 	/*
 	* 1、运行过程中，某枪充电或停充，则模块会切出或切入
@@ -1886,7 +1888,7 @@ static void ChgRunPolicyDo(int gunId)
 			SetChgStep(gunId, CHG_MAIN_CHANGE);
 		}
 	}
-	else if (isChange == CHANGE_IN)				// 有模块需要切入，通知车端升功率
+	else if (isChange == CHANGE_IN)				// 有模块需要切入，通知车端升功率//lhm: 应该是多余的
 	{
 		SetChgStep(gunId, CHG_MAIN_CHANGE);
 	}
