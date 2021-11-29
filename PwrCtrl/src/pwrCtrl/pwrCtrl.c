@@ -453,7 +453,7 @@ static int GetChgCurOut(int gunId)
 */
 static int GetChgPwrOut(int gunId)
 {
-	g_chgInfo[gunId].pwrOut = GetChgVolOut(gunId) * GetChgCurOut(gunId) / POWER_CALC_RATIO;		// 单位0.1kW
+	g_chgInfo[gunId].pwrOut =  (gunId) * GetChgCurOut(gunId) / POWER_CALC_RATIO;		// 单位0.1kW
 
 	return g_chgInfo[gunId].pwrOut;
 }
@@ -1215,7 +1215,7 @@ static int ModGrpChangeDo(CHG_POLICY_RES_STRUCT res, int gunId)
 	memcpy(&resAry, &res.resAry[gunId], sizeof(CHG_POLICY_STRUCT));
 
 	tmpGrpCount = 0;
-	if (gunId == resAry.gunId - 1)
+	if (gunId == resAry.gunId - 1)						//lhm: check Id
 	{
 		if (resAry.gunRes == CHANGE_OUT)				// 模块切出
 		{
@@ -1256,7 +1256,7 @@ static int ModGrpChangeDo(CHG_POLICY_RES_STRUCT res, int gunId)
 				}
 			}
 
-			if (modeAll || modeUsed)
+			if (modeAll || modeUsed)//lhm: modeUsed没有判断（没有判断模块是否处于空闲状态）
 			{
 				return RESULT_ERR;
 			}
@@ -1268,7 +1268,7 @@ static int ModGrpChangeDo(CHG_POLICY_RES_STRUCT res, int gunId)
 		{
 			grpId = resGrpId[j];
 			g_pGrpFun->GetGroupUI(grpId, &grpVol, &grpCur);		// 获取该组模块电压、电流
-			chgVol = GetChgVolOut(gunId);
+			chgVol = GetChgVolOut(gunId);						//lhm: 获取枪输出电压
 //			DEBUG("gunId = %d, chgVol = %d, grpId = %d, grpVol = %d, grpCur = %d", gunId, chgVol, grpId, grpVol, grpCur);
 			
 			/* 压差小于10V，电流小于2A */
@@ -1286,6 +1286,7 @@ static int ModGrpChangeDo(CHG_POLICY_RES_STRUCT res, int gunId)
 				// 设置模块电压电流
 				g_pGrpFun->SetGroupUI(grpId, chgVol, 100);
 				if ((abs(chgVol - grpVol) < 100) && (grpCur < 200))		// 切入，电压电流都要判断
+				//lhm: 切入的模块原来的电压可能和充电电压不一样；这里只负责降流保压以切入切出，具体的按充电需求输出在ChgRunDo中实现
 				{
 					tmpGrpCount++;
 				}
@@ -1560,7 +1561,7 @@ static int ChgPolicyDo(int step, int gunId)
 					SetChgStep(i, CHG_MAIN_STOP);
 					memcpy(&g_chgResOld[i], &g_res.resAry[i], sizeof(CHG_POLICY_STRUCT));
 
-					if (GetChgStep(i) != CHG_MAIN_STOP)//lhm: 应该是多余的（应该也不会是基于线程锁的考虑）
+					if (GetChgStep(i) != CHG_MAIN_STOP)//lhm: 应该是多余的
 					{
 						SetChgStopReason(i, STOP_PWRPOLICY);
 						DEBUG("gunId = %d, ChgPolicyDo STOP_PWRPOLICY", i);
@@ -1700,7 +1701,7 @@ static void ChgChangeDo(int gunId)
 	for (i = 0; i < g_unitPara.gunNum; i++)					
 	{
 		if (GetChgStep(i) == CHG_MAIN_RUN_POLICY)	// 需要先等待其他枪功率到位后才能CHANGE
-		{											// lhm: CHG_MAIN_RUN_POLICY阶段的切出
+		{											// lhm: 要处理枪gunId的CHG_MAIN_CHANGE，需保证所有枪中没有CHG_MAIN_RUN_POLICY的
 			return;
 		}
 
@@ -1709,20 +1710,19 @@ static void ChgChangeDo(int gunId)
 			&& (g_res.resAry[i].gunRes == CHANGE_OUT))//lhm: CHG_MAIN_STOP阶段不一定有切出，因为可能之前没有分配到模块，所有要判断CHANGE_OUT
 		{
 			if (g_res.resAry[gunId].gunRes == CHANGE_IN)	// 枪切出可以一起进行，但是需要先完成所有的切出再进行切入
-			//lhm: 这个判断应该多余（因为在ChgPolicyDo中，如果是CHANGE_IN，则会设置充电阶段CHG_MAIN_CHANGE）
 			{
-				return;
+				return;	//lhm: 枪是被轮询的，所以gunId会变化，代码会在之后的轮询中把CHANGE_OUT的情况处理掉（继电器断开并进入CHG_MAIN_RUN）
 			}
 		}
 	}
 
 	if (g_pwrPri.changeTick[gunId] == 0)
 	{
-		g_pwrPri.changeTick[gunId] = get_timetick();	// 开始计时
+		g_pwrPri.changeTick[gunId] = get_timetick();	// 开始计时//lhm: 耗时应该主要在降流过程
 	}
 
 	/* 进行切入或切出操作，超时15s */
-	if (abs(get_timetick() - g_pwrPri.changeTick[gunId]) > WAIT_POWER_CHANGE_TIME)
+	if (abs(get_timetick() - g_pwrPri.changeTick[gunId]) > WAIT_POWER_CHANGE_TIME)//lhm: 15s
 	{
 		SetChgStep(gunId, CHG_MAIN_STOP);
 		SetChgStopReason(gunId, STOP_PWRCHANGE);
@@ -1759,11 +1759,11 @@ static void ChgRunDo(int gunId)
 	int vol = GetChgVolNeed(gunId);
 	int cur = GetChgCurNeed(gunId);
 	int grpNum, curTmp, mdlCurMax, volOut;
-	int grpId[GROUP_MAX_NUM], gunRes; 
+	int grpId[GROUP_MAX_NUM], gunRes;
 
 	mdlCurMax = 0;
 	gunRes = g_res.resAry[gunId].gunRes;
-	if (((GetChgStep(gunId) == CHG_MAIN_CHANGE) && (gunRes == CHANGE_IN))//lhm: 处于“模块切入切出中”，使用原来连接的模块
+	if (((GetChgStep(gunId) == CHG_MAIN_CHANGE) && (gunRes == CHANGE_IN))//lhm: “模块切入切出中”---使用原来连的模块（提供给枪端的pwrMax还是原来的）
 		|| (GetChgStep(gunId) == CHG_MAIN_RUN_POLICY))
 	{
 		grpNum = g_chgResOld[gunId].groupNum;
@@ -1833,9 +1833,10 @@ static void ChgRunDo(int gunId)
 
 		if ((curTmp) && (vol))						// 需要正常输出的模块
 		{
-			g_pGrpFun->SetGroupUI(grpId[i], vol, curTmp);
+			g_pGrpFun->SetGroupUI(grpId[i], vol, curTmp);	//lhm: int vol = GetChgVolNeed(gunId);
 		}
 		else if ((vol) && (curTmp == 0))			// 不需要工作的模块以最小电压保持住
+		//lhm: 不需要工作的模块（最小电压保持住） != 空闲模块（电压电流置零）
 		{
 			volOut = GetChgVolOut(gunId) > 500 ? (GetChgVolOut(gunId) - 500) : GetChgVolOut(gunId);
 			volOut = volOut > GetChgVolNeed(gunId) ? GetChgVolNeed(gunId) : volOut;
@@ -1851,7 +1852,7 @@ static void ChgRunDo(int gunId)
 				g_pGrpFun->SetGroupUI(grpId[i], volOut, 10);
 			}
 		}
-		else										//lhm: 需求电压vol = 0
+		else										//lhm: 模块不在线
 		{
 			g_pGrpFun->SetGroupUI(grpId[i], 0, 0);	// 泄放等操作
 		}

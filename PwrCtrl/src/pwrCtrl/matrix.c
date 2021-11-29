@@ -570,6 +570,8 @@ static void PolicyStop(CHG_POLICY_NEED_STRUCT chg)
 * UPDATE	: 
 * *******************************************************************************
 */
+//lhm: 手拉手方式可分四种情况，带两把枪，每一把枪的groupId[GROUP_MAX_NUM]要么用一半，要么全部用\
+//lhm: 即在add / free groupId的时候要么add / free一半，要么add / free所有（不会add / free某半边的其中若干个）
 static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 {
 	int i, j, k;
@@ -578,7 +580,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 	int 					startAddr, endAddr;
 
 	memcpy(g_oldResAry, g_resAry, sizeof(CHG_POLICY_STRUCT)*GUN_DC_MAX_NUM);		// 备份上次的分配结果
-	for (i = 0; i < g_init.gunNum; i++)//lhm: 第一步都是所有枪的策略置零重整（g_init.gunNum不会也不能超过6）
+	for (i = 0; i < g_init.gunNum; i++)//lhm: 第一步都是所有枪的策略置零重整（g_init.gunNum不能超过6）
 	{
 		g_resAry[i].gunId = i + 1;
 		g_resAry[i].gunRes = CHANGE_NO;
@@ -586,19 +588,20 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 		g_resAry[i].addGrpNum = 0;
 		g_resAry[i].freeGrpNum = 0;
 	}
-
-	if (gunid == 0)//lhm: 只支持2把枪？
+	//lhm: 该策略只支持2把枪
+	//lhm: 两把枪根据情况使用自己半边的模块或者使用所有的模块，由中间继电器控制
+	if (gunid == 0)//lhm: gunid = 0占半边模块
 	{
 		startAddr = 0;
 		endAddr = groupNum / 2;
 	}
-	else
+	else//lhm: gunid = 1 (3, 5, 7, ...)占另外半边模块
 	{
 		startAddr = groupNum / 2;
 		endAddr = groupNum;
 	}
 
-	if ((g_resAry[gunid].groupNum == 0) && (g_resAry[(gunid+1)%2].groupNum == 0))	
+	if ((g_resAry[gunid].groupNum == 0) && (g_resAry[(gunid+1)%2].groupNum == 0))//lhm: 另一把枪空闲，gunId发起充电请求（gunId之前也空闲）
 	{
 		if (chg.pwrNeed > groupNum/2 * g_init.groupPwr)	// 一定会用到另外半边模块
 		{
@@ -607,7 +610,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 
 			g_resAry[gunid].relayNum = 1;
 			g_resAry[gunid].relayId[0] = 1;
-			g_resAry[gunid].relaySW[0][0] = 1;//lhm: 只有一个继电器？
+			g_resAry[gunid].relaySW[0][0] = 1;//lhm: 只有一个继电器
 		}
 
 		j = 0;
@@ -627,12 +630,12 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 	}
 	else
 	{
-		if ((g_resAry[gunid].groupNum > 0) && (g_resAry[(gunid+1)%2].groupNum == 0))
+		if ((g_resAry[gunid].groupNum > 0) && (g_resAry[(gunid+1)%2].groupNum == 0))//lhm: 另一把枪空闲，gunId充电需求发生改变
 		{
 			if (chg.pwrNeed > groupNum/2 * g_init.groupPwr)	// 一定会用到另外半边模块
 			{
 				startAddr = 0;
-				endAddr = groupNum;
+				endAddr = groupNum;//lhm: 一定会用到另外半边模块
 
 				g_resAry[gunid].relayNum = 1;
 				g_resAry[gunid].relayId[0] = 1;
@@ -640,9 +643,9 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 			}
 
 			j = g_resAry[gunid].groupNum;
-			for (i = startAddr; i < endAddr; i++)
+			for (i = startAddr; i < endAddr; i++)//lhm: 轮询模块，检查其是否是原来的（groupNum），没有则添加进去
 			{
-				if (g_group[i].sta == 0)
+				if (g_group[i].sta == 0)//lhm: 0代表正常，1代表失败
 				{
 					for (k = 0; k < g_resAry[gunid].groupNum; k++)
 					{
@@ -668,7 +671,8 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 		}
 		else
 		{
-			if (g_resAry[(gunid+1)%2].pwrMax <= groupNum/2 * g_init.groupPwr)	// 说明中间继电器未闭合//lhm: 另外半边的枪没有用到这边的模块
+			if (g_resAry[(gunid+1)%2].pwrMax <= groupNum/2 * g_init.groupPwr)	// 说明中间继电器未闭合
+			//lhm: 另一把枪不空闲，但只用到自己那半边的模块
 			{
 				j = 0;
 				for (i = startAddr; i < endAddr; i++)
@@ -685,7 +689,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 
 				g_resAry[gunid].pwrMax = g_resAry[gunid].groupNum * g_init.groupPwr;
 			}
-			else
+			else//lhm: 另一把枪不空闲，且用了所有的模块
 			{
 				j = 0;
 				k = 0;
