@@ -133,8 +133,6 @@ static void RelayResFrame(struct can_frame recvFrame)//lhm: PDU回复数据存�
 	memcpy(g_relayInfo[addr].sw, recvFrame.data, 6);
 	g_relayInfo[addr].temp[0] = recvFrame.data[6];//lhm: temp是PDU温度
 	g_relayInfo[addr].temp[1] = recvFrame.data[7];
-
-//	if (memcmp(g_relayInfo[addr].sw, g_relayPri[addr].sw, SINGLE_PDU_RELAY_NUM) == 0)	// 反馈结果正确
 	/* 如控制第一个继电器闭合，其他断开，则发送 1 0 0 0 0 0，正确返回应该是0x11 0x00 0x00 0x00 0x00 0x00,
 	   其中0x11高字节表示DC+反馈状态，低字节表示DC-反馈状态
 	 */
@@ -163,14 +161,7 @@ static void RelayResFrame(struct can_frame recvFrame)//lhm: PDU回复数据存�
 		g_relayInfo[addr].ctrlBack = RELAY_BACK_OK;
 	}
 
-//	g_relayInfo[addr].ctrlBack = RELAY_BACK_OK;	// 临时测试使用
-
 	g_relayPri[addr].recvTick = get_timetick();
-
-/*	DEBUG("addr = %d, sw = %x %x %x %x %x %x, temp = %d, %d", addr,
-		g_relayInfo[addr].sw[0], g_relayInfo[addr].sw[1], g_relayInfo[addr].sw[2],
-		g_relayInfo[addr].sw[3], g_relayInfo[addr].sw[4], g_relayInfo[addr].sw[5],
-		g_relayInfo[addr].temp[0], g_relayInfo[addr].temp[1]);*/
 }
 
 /*
@@ -199,46 +190,7 @@ static int FilterBuffer(struct can_frame recvFrame, int len)
 
 	return RESULT_ERR;
 }
-#if 0
-/*
-* *******************************************************************************
-* MODULE	: PackFrame
-* ABSTRACT	: 帧格式组包
-* FUNCTION	: 
-* ARGUMENT	: void
-* NOTE		: 
-* RETURN	: 
-* CREATE	: 
-*			: V0.01
-* UPDATE	: 
-* *******************************************************************************
-*/
-static int PackFrame(unsigned char *srcFrame, int srcLen,
-						unsigned char *dstFrame, int *dstLen)
-{
 
-	return 0;
-}
-
-/*
-* *******************************************************************************
-* MODULE	: UnpackFrame
-* ABSTRACT	: 获取帧数据内容
-* FUNCTION	: 
-* ARGUMENT	: void
-* NOTE		: 
-* RETURN	: 
-* CREATE	: 
-*			: V0.01
-* UPDATE	: 
-* *******************************************************************************
-*/
-static int UnpackFrame(unsigned char *srcFrame, unsigned char *dstFrame, int *dstLen)
-{
-
-	return 0;
-}
-#endif
 /*
 * *******************************************************************************
 * MODULE	: ProtDataCallBack

@@ -70,7 +70,7 @@ typedef struct{
 	unsigned char 		gunNum;			// 支持的枪数量
 	unsigned char 		groupNum;		// 支持的组数量
     unsigned char 		relayNum;		// 支持的继电器数量
-    unsigned int 		groupPwr;		// 一组模块的功率
+    unsigned int 		groupPwr;		// 一组模块的功率//lhm: 单个模块的功率
     unsigned char 		grpSync;		// 模组对称系数，即1、7、13..为兄弟组，2、8、14为兄弟组，grpId=(n+6*grpSync)
     unsigned char 		policyType;		// 策略模式
 }MATRIX_INIT_STRUCT;
@@ -138,11 +138,10 @@ typedef struct
 
 void Matrix_Init(MATRIX_INIT_STRUCT init);
 CHG_POLICY_RES_STRUCT Matrix_Policy(CHG_POLICY_NEED_STRUCT chg);
-void Matrix_Back();
-void Matrix_FreeAll();
-int Matrix_SetGroupSta(int grpId, int sta);//lhm: 提供操作matrix.c文件中变量g_group的接口（设置模块状态，同时将modCtrl.c的模块id和g_group的对应模块id对应起来）
+int Matrix_SetGroupSta(int grpId, int sta);	//lhm: 提供操作matrix.c文件中变量g_group的接口（模块id和实际的对应上）
+void MatrixPrint(CHG_POLICY_RES_STRUCT res, char *string);
+
 //lhm: 本代码最多支持12个模块（g_group的数组元素个数是12），如果是MATRIX2MATRIX，对称系数只能是1；如果是MATRIX2HAND，对称系数可以是1，2
 //lhm: 本代码最多支持6把枪，虽然MATRIX2MATRIX的本意应该是可以支持到12把枪，但是如果加入枪7或以上，那么代码会在多处地方出错
-void MatrixPrint(CHG_POLICY_RES_STRUCT res, char *string);
 
 #endif // __MATRIX_H__

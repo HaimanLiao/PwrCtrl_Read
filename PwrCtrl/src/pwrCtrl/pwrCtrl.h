@@ -144,16 +144,15 @@ void PwrCtrl_Init();
 void PwrCtrl_Uninit();
 
 //lhm: fault.c中调用（ FaultDeal() ）
-void PwrCtrl_EMCStop(int stopReason);						//lhm: 修改、读取g_chgInfo[GUN_DC_MAX_NUM]和g_pwrPri（紧急停止，紧急断开前端接触器）
-int PwrCtrl_FaultStop(int stopReason, int gunId);			//lhm: 修改、读取g_chgInfo[GUN_DC_MAX_NUM]和g_pwrPri（整流柜故障停止）
+void PwrCtrl_EMCStop(int stopReason);				//lhm: 修改、读取g_chgInfo[GUN_DC_MAX_NUM]和g_pwrPri（紧急停止，紧急断开前端接触器）
+int PwrCtrl_FaultStop(int stopReason, int gunId);	//lhm: 修改、读取g_chgInfo[GUN_DC_MAX_NUM]和g_pwrPri（整流柜故障停止）
 
 //lhm: matrix.c中调用
-int PwrCtrl_GetEVSEPwrMax(int gunId);						//lhm: 读取g_chgInfo[GUN_DC_MAX_NUM]（获得整流柜对于某枪的最大功率）
+int PwrCtrl_GetEVSEPwrMax(int gunId);				//lhm: 读取g_chgInfo[GUN_DC_MAX_NUM]（获得整流柜对于某枪的最大功率）
 
 //lhm: 没有调用
 void PwrCtrl_GetUnitPara(UNIT_PARA_STRUCT *pUnit);
 int PwrCtrl_LimitPower(int pwr);					//lhm: 修改g_unitPara（限功率）
-
 
 
 #endif // __RELAYCTRL_H__

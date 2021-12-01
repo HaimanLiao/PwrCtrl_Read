@@ -464,7 +464,7 @@ int main(int argc, char *argv[])
 			if (GetMainStatusPending(MAIN_STATUS_PROGRAM_QUIT) == 1)		// 要求程序退出
 			{
 				MainQuit();
-				SetMainStatusPending(0, MAIN_STATUS_PROGRAM_QUIT);
+				SetMainStatusPending(0, MAIN_STATUS_PROGRAM_QUIT);//lhm: 第一个参数是0---清空pending，是1---设置pending（1是zmq接口调用，主要是修改配置信息）
 				break;
 			}
 

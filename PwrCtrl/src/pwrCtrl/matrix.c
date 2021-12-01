@@ -42,7 +42,6 @@
 */
 
 //#define 	PRINT
-//lhm: 对外开放的数据类型，用于给调用者进行函数参数的初始化 + 返回值的取用
 static 		CHG_POLICY_STRUCT 		g_oldResAry[GUN_DC_MAX_NUM] = {0};
 static 		CHG_POLICY_STRUCT 		g_resAry[GUN_DC_MAX_NUM] = {0};
 
@@ -69,9 +68,9 @@ static 		ADDR_STRUCT				g_matrixAddr[12] = {		//lhm: 最多支持6把枪 + 对�
 	{6,			1,				12},
 };
 
-static 		ADDR_STRUCT				g_matrixDoubleAddr[12] = {	//lhm: 两个MATRIX---如果枪号是7~12则从模块7~12中分；如果枪号是1~6则从模块1~6中分（实际最多支持12把枪 + 对称系数 = 1）
-	// gunId 	// startAddr 	// endAddr						//lhm: 该策略用在180kw双枪一体机（只用到6个模块，所以最多支持6把枪）
-	/* 1-6枪180单体柜 */
+static 		ADDR_STRUCT				g_matrixDoubleAddr[12] = {	//lhm: 两个MATRIX---如果枪号是7~12则从模块7~12中分；如果枪号是1~6则从模块1~6中分
+	// gunId 	// startAddr 	// endAddr						//lhm: 该策略用在180kw双枪一体机（2枪 + 对称系数 = 1）
+	/* 1-6枪180单体柜 */										 //lhm: 实际也是最多支持6把枪 + 对称系数 = 1（否则策略代码运行出错）
 	{1,			1,				6},
 	{2,			1,				6},
 	{3,			1,				6},
@@ -115,12 +114,11 @@ static 		ADDR_STRUCT			*g_addr = NULL;
 * UPDATE	: 
 * *******************************************************************************
 */
-static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策略（该枪的行为是：1、新的发起充电的枪；2、正在充电的枪但功率需求发生改变）
+static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策略（该枪的行为是：1、新的发起充电的枪；2、正在充电的枪，但功率需求发生改变）
 {
 	int i, j, k;
 	int flag[GUN_DC_MAX_NUM] = {0};
 
-//	CHG_POLICY_STRUCT 		g_oldResAry[GUN_DC_MAX_NUM];
 	GUN_STRUCT 				gunTmp[GUN_DC_MAX_NUM];
 	GUN_STRUCT 				tmpbuf;
 	unsigned int 			gunNum = 0;
@@ -129,27 +127,24 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
 	int 					grpid;
 
 	/* 计算实际可用模块数量，故障模块不进行分配 */
-	//lhm: 使用中的模块也参与分配（因为一个模块在充电过程中不是必须一直连着同一把枪）
-	//lhm: 相当于“所有正在使用的枪（guntmp[]）”当前的分配情况推倒然后重新分配，因为每把枪的功率需求是时刻变化的（先不管具体模块的分配前后时候是否需要切换，先关注重新分配的结果）
+	//lhm: 相当于把“所有正在使用的枪（guntmp[]）”当前的分配情况推倒然后重新分配
 	//lhm: 每把枪的id是不一样的，根据各自的id，每把枪在g_gun[]和guntmp[]占据一个位置
-	//lhm: static	GUN_STRUCT	g_gun[GUN_DC_MAX_NUM] = {0};GUN_DC_MAX_NUM是最多支持的数量，对应的枪id范围是0~GUN_DC_MAX_NUM - 1
 	int tmpCount = 0;
-	for (i = 0; i < groupNum; i++)//lhm: 初始时GROUP_MAX_NUM（12）个模块sta全为0---在Init的时候，如果是MATRIX2HAND，只会在1-6出现sta为1（故障模块数不会超过6，代码仍行得通）
-	{
-		if (g_group[i].sta == 1)//lhm: 1表示模块故障
+	for (i = 0; i < groupNum; i++)	//lhm: 初始时GROUP_MAX_NUM（12）个模块sta全为0
+	{								//lhm: 在Init的时候，如果是MATRIX2HAND，只会在1-6出现sta为1（故障模块数不会超过6，代码仍行得通）
+		if (g_group[i].sta == 1)	//lhm: 1表示模块故障
 		{
-#ifdef PRINT
-			printf("g_group[%d].sta offline\n", i);
-#endif
 			tmpCount++;//lhm: 故障模块总数
 		}
 	}
-	groupNum = groupNum - tmpCount * g_init.grpSync;	// 如果是MATRIX2HAND，只会在1-6出现group.sta为1
+	groupNum = groupNum - tmpCount * g_init.grpSync;
 
 	memcpy(g_oldResAry, g_resAry, sizeof(CHG_POLICY_STRUCT)*GUN_DC_MAX_NUM);		// 备份上次的分配结果
 	for (i = 0; i < g_init.gunNum; i++)
 	{
-		//lhm: 下面if本意是初始化和gunid处于同一个MATRIX下的枪的策略，但当对称系数 > 1时会有漏洞（当对称系数 > 1时，模块起始地址到末地址不对应同MATRIX下的枪id）
+		//lhm: 下面if本意是初始化和gunid处于同一个MATRIX下的枪的策略
+		//lhm: 但是对应双MATRIX，当对称系数 > 1时，模块起始地址到末地址还是不对应同MATRIX下的枪id
+		//lhm: 所以对于MATRIX2MATIRX策略，实际最多支持6把枪 + 对称系数 = 1（否则代码运行出错）
 		if ((i >= (g_addr[gunid].startAddr-1)) && (i < g_addr[gunid].endAddr))
 		{
 			g_resAry[i].gunId = i + 1;
@@ -171,49 +166,11 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
 	g_gun[gunid].gun.pwrNeed = chg.pwrNeed;
 	g_gun[gunid].gun.startTime = chg.startTime;
 
-#ifdef PRINT	
-	printf("grpUsed : ");
-	for (i = 0; i < g_init.groupNum; i++)
-	{
-		printf(" %d", g_group[i].groupUsed);
-	}
-	printf(", %s, %d\n\r", __FILE__, __LINE__);
-#endif
-
-/*	if (ctrl == 0)			// stop
-	{
-		g_gun[gunid].gunUsed = 0;
-
-		for (i = 0; i < g_resAry[gunid].groupNum; i++)
-		{
-			g_group[g_resAry[gunid].groupId[i]-1].groupUsed = 0;
-		}
-
-		g_resAry[gunid].groupNum = 0;
-		g_resAry[gunid].relayNum = 0;
-		g_resAry[gunid].addGrpNum = 0;
-		g_resAry[gunid].freeGrpNum = g_oldResAry[gunid].groupNum;
-		memcpy(g_resAry[gunid].freeGrpId, g_oldResAry[gunid].groupId, sizeof(unsigned int)*GROUP_MAX_NUM);
-	}
-	else if (ctrl == 1)		// start
-	{*/
-//		g_gun[gunid].gun.pwrNeed = chg.pwrNeed;
-		g_gun[gunid].gunUsed = 1;
-//	}
-
+	g_gun[gunid].gunUsed = 1;
 	g_resAry[gunid].groupNum = 0;
 	g_resAry[gunid].relayNum = 0;
 	g_resAry[gunid].freeGrpNum = 0;
 	g_resAry[gunid].addGrpNum = 0;
-
-#ifdef PRINT
-	printf("gunUsed : ");
-	for (i = 0; i < g_init.gunNum; i++)
-	{
-		printf(" %d", g_gun[i].gunUsed);
-	}
-	printf(", %s, %d\n\r", __FILE__, __LINE__);
-#endif
 
 	/* 重新策略分配 
 	*  1、先进行排序，按照充电起始时间
@@ -224,11 +181,11 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
 	/* step one */
 	/* 根据枪实际所在位置，把相关的枪弄进来 */
 	gunNum = 0;
-//	lhm: 下面这个for循环应该是遍历同MATRIX下的枪
-//	for (i = g_addr[gunid].startAddr-1; i < g_addr[gunid].endAddr; i++)	//lhm: 这行也不能代表同一个MATRIX下的枪id（当对称系数 > 1时，模块起始地址到末地址不对应同MATRIX下的枪id）
+//	lhm: 下面这个for循环本意应该是遍历同MATRIX下的枪，但当对称系数 > 1时，模块起始地址到末地址不对应同MATRIX下的枪id
+//	for (i = g_addr[gunid].startAddr-1; i < g_addr[gunid].endAddr; i++)	//lhm: 这行也不能代表同一个MATRIX下的枪id
 	for (i = 0; i < g_init.gunNum; i++)									//lhm: g_gun[]固定6个元素（初始化为0，所以初始时g_gun[i].gunUsed均为0）
-	{																	//lhm: g_gun[]固定6个元素，所以g_init.gunNum不能超过6，否则内存访问错误（MATRIX2MATRIX那个结构数组定义7~12枪无意义）
-		if (g_gun[i].gunUsed == 1)									//lhm: g_gun[i].gunId = i + 1（固定在g_gun[]的6个元素里，g_gun是本c文件的全局变量）
+	{																	//lhm: g_gun[]固定6个元素，所以g_init.gunNum不能超过6（MATRIX2MATRIX那个结构数组定义7~12枪无意义）
+		if (g_gun[i].gunUsed == 1)										//lhm: g_gun[i].gunId = i + 1（固定在g_gun[]的6个元素里，g_gun是本c文件的全局变量）
 		{
 			memcpy(&gunTmp[gunNum], &g_gun[i], sizeof(GUN_STRUCT));	//lhm: gumTmp[i].gunId不一定等于i
 			gunNum++;
@@ -237,14 +194,8 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
 
 	if (!gunNum)
 	{
-//		memset(g_resAry, 0, sizeof(CHG_POLICY_STRUCT)*GUN_DC_MAX_NUM);
-//		return;
 		goto RETURN;
 	}
-	
-#ifdef PRINT
-	printf("gunNum = %d\n\r", gunNum);
-#endif
 
 	/* 根据充电开始时间排序，从先到后 */
 	//lhm: 冒泡排序
@@ -263,14 +214,6 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
 		}
 	}
 	//lhm: gunTmp[]保存正在使用的枪的policy相关参数（最大提供功率 + 枪的需求 + 枪的开始充电时间）
-#ifdef PRINT
-	printf("pwrNeed : ");
-	for (i = 0; i < gunNum; i++)
-	{
-		printf(" id=%d,pwr=%d", gunTmp[i].gunId, gunTmp[i].gun.pwrNeed);
-	}
-	printf(", %s, %d\n\r", __FILE__, __LINE__);
-#endif
 
     /* step two */
 	int grpPwrMax = g_init.groupPwr * g_init.grpSync;	// 计算模组功率//lhm: 一个模组指的是兄弟模块组（共切入共切出）
@@ -281,14 +224,6 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
 		//lhm: （重新分配）只决定分配到多少个模块，而具体是连接到那几个模块则不管
 		for (i = 0; i < gunNum; i++)
 		{
-/*    		if (gunTmp[i].gunUsed == 0)
-    		{
-    			continue;
-    		}*/
-#ifdef PRINT
-			printf("i = %d, gunId = %d, pwrNeed = %d\n\r", i, gunTmp[i].gunId, gunTmp[i].gun.pwrNeed);
-#endif
-
 			gunid = gunTmp[i].gunId - 1;
 			if (gunTmp[i].gun.pwrNeed >= grpPwrMax)		// 枪功率大于一个模组功率
     		{
@@ -316,15 +251,10 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
     		{
     			break;
     		}
- //   		printf("j = %d\n\r", j);
     	}
     }
 
 	/* 这是最后一轮分配，哪把枪剩的最大，就先给谁 */
-#ifdef PRINT
-	printf("rest groupNum = %d\n\r", groupNum);
-#endif
-
     while (groupNum)
     {
     	for (i = 0; i < gunNum; i++)
@@ -333,10 +263,6 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
     		k = 0;
     		for (j = 0; j < gunNum; j++)
     		{
-    			#ifdef PRINT
-				printf("j = %d, gunId = %d, pwrNeed = %d\n\r", j, gunTmp[j].gunId, gunTmp[j].gun.pwrNeed);
-				#endif
-
     			if ((gunTmp[j].gun.pwrNeed < grpPwrMax) 
     					&& (gunTmp[j].gun.pwrNeed != 0))
 	    		{
@@ -349,7 +275,6 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
     		
     		if (gunTmp[k].gun.pwrNeed != 0)
     		{
-//    			printf("111 pwr = %d, gunid = %d\n", gunTmp[k].gun.pwrNeed, k);
     			gunTmp[k].gun.pwrNeed = 0;
     			gunid = gunTmp[k].gunId-1;
 	    		g_resAry[gunid].groupNum += g_init.grpSync;
@@ -384,17 +309,6 @@ static void PolicyStart(CHG_POLICY_NEED_STRUCT chg)//lhm: 针对一把枪的策�
     		}
     	}
     }
-
-/*    for (i = 0; i < g_init.gunNum; i++)
-	{
-		g_resAry[i].relayNum = g_resAry[i].groupNum;
-
-		for (j = 0; j <  g_resAry[i].groupNum; j++)
-		{
-			g_resAry[i].relayId[j] = g_resAry[i].groupId[j];
-		}
-	}
-*/
 
     for (i = 0; i < g_init.gunNum; i++)							//lhm: g_init.gunNum包含了所有的枪号而不仅是正在使用的枪号
     {
@@ -471,44 +385,7 @@ RETURN:
 		{
 			g_resAry[i].gunRes = CHANGE_IN;//lhm: 模块切进来
 		}
-
-		/*if ((g_oldResAry[i].groupNum != g_resAry[i].groupNum)
-			|| (g_oldResAry[i].relayNum != g_resAry[i].relayNum))
-		{
-			g_resAry[i].gunRes = 1;
-		}
-		else
-		{
-			for (j = 0; j < g_resAry[i].groupNum; j++)
-			{
-				if (g_oldResAry[i].groupId[j] != g_resAry[i].groupId[j])
-				{
-					g_resAry[i].gunRes = 1;
-					break;
-				}
-			}
-		}*/
-		
 	}
-
-#ifdef PRINT
-	printf("grpNum :  ");
-    for (i = 0; i < g_init.gunNum; i++)
-    {
-    	printf(" %d", g_resAry[i].groupNum);
-    }
-
-	printf(", %s, %d\n\r", __FILE__, __LINE__);
-
-
-	printf("grpUsed : ");
-	for (i = 0; i < g_init.groupNum; i++)
-	{
-		printf(" %d", g_group[i].groupUsed);
-	}
-	printf(", %s, %d\n\r", __FILE__, __LINE__);
-#endif
-
 	return;
 }
 
@@ -536,7 +413,7 @@ static void PolicyStop(CHG_POLICY_NEED_STRUCT chg)
 
 	for (i = 0; i < g_init.gunNum; i++)
 	{
-		g_resAry[i].gunRes = CHANGE_NO;
+		g_resAry[i].gunRes = CHANGE_NO;//lhm: 其他枪不变（g_resAry[gunid].gunRes = CHANGE_OUT）
 		g_resAry[i].addGrpNum = 0;
 		g_resAry[i].freeGrpNum = 0;
 	}
@@ -550,7 +427,7 @@ static void PolicyStop(CHG_POLICY_NEED_STRUCT chg)
 	g_resAry[gunid].pwrMax = 0;
 	g_resAry[gunid].groupNum = 0;
 	g_resAry[gunid].relayNum = g_oldResAry[gunid].relayNum;
-	memcpy(g_resAry[gunid].relayId, g_oldResAry[gunid].relayId, sizeof(unsigned int)*PDU_MAX_NUM);//lhm: 需要操作的PDU的id不变（应该是需要断开继电器连接）
+	memcpy(g_resAry[gunid].relayId, g_oldResAry[gunid].relayId, sizeof(unsigned int)*PDU_MAX_NUM);
 	g_resAry[gunid].addGrpNum = 0;
 	g_resAry[gunid].freeGrpNum = g_oldResAry[gunid].groupNum;
 	memcpy(g_resAry[gunid].freeGrpId, g_oldResAry[gunid].groupId, sizeof(unsigned int)*GROUP_MAX_NUM);
@@ -570,8 +447,10 @@ static void PolicyStop(CHG_POLICY_NEED_STRUCT chg)
 * UPDATE	: 
 * *******************************************************************************
 */
-//lhm: 手拉手方式可分四种情况，带两把枪，每一把枪的groupId[GROUP_MAX_NUM]要么用一半，要么全部用\
+//lhm: 手拉手方式可分四种情况，带两把枪，每一把枪的groupId[GROUP_MAX_NUM]要么用一半，要么全部用
 //lhm: 即在add / free groupId的时候要么add / free一半，要么add / free所有（不会add / free某半边的其中若干个）
+//lhm: 两把枪，一开始默认每把各占一半（“startAddr = 0 & endAddr = groupNum /2” + “startAddr = 0 & endAddr = groupNum”）
+//lhm: （gunId + 1) % 2是另一把枪的意思，如果gunid = 1(3, 5, 7, ...)，则另一把枪的gunid = 0（反之则反过来）
 static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 {
 	int i, j, k;
@@ -580,7 +459,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 	int 					startAddr, endAddr;
 
 	memcpy(g_oldResAry, g_resAry, sizeof(CHG_POLICY_STRUCT)*GUN_DC_MAX_NUM);		// 备份上次的分配结果
-	for (i = 0; i < g_init.gunNum; i++)//lhm: 第一步都是所有枪的策略置零重整（g_init.gunNum不能超过6）
+	for (i = 0; i < g_init.gunNum; i++)//lhm: 所有枪的策略置零重整（g_init.gunNum不能超过2）
 	{
 		g_resAry[i].gunId = i + 1;
 		g_resAry[i].gunRes = CHANGE_NO;
@@ -643,7 +522,8 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 			}
 
 			j = g_resAry[gunid].groupNum;
-			for (i = startAddr; i < endAddr; i++)//lhm: 轮询模块，检查其是否是原来的（groupNum），没有则添加进去
+			for (i = startAddr; i < endAddr; i++)	//lhm: 轮询模块，检查其是否是原来的（groupNum），没有则添加进去
+													//lhm: 应该不用这么麻烦，可以通过判断endAddr大小来决定是否添加另外半边的模块Id
 			{
 				if (g_group[i].sta == 0)//lhm: 0代表正常，1代表失败
 				{
@@ -675,7 +555,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 			//lhm: 另一把枪不空闲，但只用到自己那半边的模块
 			{
 				j = 0;
-				for (i = startAddr; i < endAddr; i++)
+				for (i = startAddr; i < endAddr; i++)//lhm: gunId只能用自己半边的模块
 				{
 					if (g_group[i].sta == 0)
 					{
@@ -697,32 +577,32 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 				{
 					if (g_group[i].sta == 0)
 					{
-						if ((i >= startAddr) && (i < endAddr))
+						if ((i >= startAddr) && (i < endAddr))//lhm: 把“被另外一把枪占用的，属于自己”的半边拿回来
 						{
 							g_resAry[gunid].groupNum++;
 							g_resAry[gunid].groupId[j] = i+1;
 							g_resAry[gunid].addGrpNum++;
 							g_resAry[gunid].addGrpId[j] = i+1;
-							g_resAry[(gunid+1)%2].groupNum--;//lhm: 另外半边也要重新分配
+							g_resAry[(gunid+1)%2].groupNum--;
 							g_resAry[(gunid+1)%2].freeGrpNum++;
 							g_resAry[(gunid+1)%2].freeGrpId[j] = i+1;
 							j++;
 						}
 						else
 						{
-							g_resAry[(gunid+1)%2].groupId[k] = i+1;
+							g_resAry[(gunid+1)%2].groupId[k] = i+1;//lhm: “属于另一把枪”的半边保持不变
 							k++;
 						}
 					}
 				}
 
-				g_resAry[gunid].pwrMax = g_resAry[gunid].groupNum * g_init.groupPwr;
+				g_resAry[gunid].pwrMax = g_resAry[gunid].groupNum * g_init.groupPwr;//lhm: 自己边的最大功率
 				
 				gunid= (gunid+1) % 2;
-				g_resAry[gunid].pwrMax = g_resAry[gunid].groupNum * g_init.groupPwr;
+				g_resAry[gunid].pwrMax = g_resAry[gunid].groupNum * g_init.groupPwr;//lhm: 另外半边的最大功率
 				g_resAry[gunid].relayNum = 1;
 				g_resAry[gunid].relayId[0] = 1;
-				g_resAry[gunid].relaySW[0][0] = 0;
+				g_resAry[gunid].relaySW[0][0] = 0;//lhm: 中间继电器断开
 			}
 		}
 	}
@@ -816,9 +696,9 @@ CHG_POLICY_RES_STRUCT Matrix_Policy(CHG_POLICY_NEED_STRUCT chg)
 {
 	CHG_POLICY_RES_STRUCT rt;
 
-	if ((chg.gunId > g_init.gunNum) && (chg.gunId == 0))
+	if ((chg.gunId > g_init.gunNum) && (chg.gunId == 0))//lhm: 枪id的合法性检查
 	{
-		rt.result = 0;
+		rt.result = 0;//lhm: POLICY_OK
 		return rt;
 	}
 
@@ -826,14 +706,13 @@ CHG_POLICY_RES_STRUCT Matrix_Policy(CHG_POLICY_NEED_STRUCT chg)
 	int addPwr = grpPwrMax - 150;
 
 	printf("grpPwrMax = %d, chg.pwrNeed = %d\n", grpPwrMax, chg.pwrNeed);
-//	DEBUG("grpPwrMax = %d,  chg.pwrNeed = %d, PwrCtrl_GetEVSEPwrMax(%d) = %d", grpPwrMax, chg.pwrNeed, chg.gunId - 1, PwrCtrl_GetEVSEPwrMax(chg.gunId - 1));
-	/* pwr==0, gun stop */
 	if (chg.pwrNeed == 0)
 	{
 		rt.result = POLICY_OK;
 
 		if (g_init.policyType == HAND2HAND)
 		{
+
 			HandStop(chg);
 		}
 		else
@@ -848,7 +727,6 @@ CHG_POLICY_RES_STRUCT Matrix_Policy(CHG_POLICY_NEED_STRUCT chg)
 			&& (g_gun[chg.gunId-1].gun.pwrNeed != 0))
 	{
 		printf("pwrNeed = %d\n", g_gun[chg.gunId-1].gun.pwrNeed);
-		
 		rt.result = POLICY_NOCHANGE;
 	}
 	else
@@ -864,6 +742,7 @@ CHG_POLICY_RES_STRUCT Matrix_Policy(CHG_POLICY_NEED_STRUCT chg)
 		}
 
 		/* 算法成功了，但是没有分到1个模块 */
+		//lhm: 可能原因是模块故障（否则按照现行策略，“6把枪 + 6个以上模块”以及“12把枪 + 12个以上模块”可以保证每把枪至少得到一个模块）
 		if (g_resAry[chg.gunId-1].groupNum == 0)
 		{
 			rt.result = POLICY_ERR;
@@ -875,44 +754,6 @@ CHG_POLICY_RES_STRUCT Matrix_Policy(CHG_POLICY_NEED_STRUCT chg)
 
 	return rt;
 }
-
-/*
-* *******************************************************************************
-* MODULE	: Matrix_Back
-* ABSTRACT	: 返回上一次策略分配结果
-* FUNCTION	: 
-* ARGUMENT	: 
-* NOTE		: 
-* RETURN	: 
-* CREATE	: 
-*			: V0.01
-* UPDATE	: 
-* *******************************************************************************
-*/
-void Matrix_Back()
-{
-	memcpy(g_oldResAry, g_resAry, sizeof(CHG_POLICY_STRUCT)*GUN_DC_MAX_NUM);
-}
-
-/*
-* *******************************************************************************
-* MODULE	: Matrix_FreeAll
-* ABSTRACT	: 清空数据，
-* FUNCTION	: 
-* ARGUMENT	: 
-* NOTE		: 
-* RETURN	: 
-* CREATE	: 
-*			: V0.01
-* UPDATE	: 
-* *******************************************************************************
-*/
-void Matrix_FreeAll()
-{
-	memset(g_oldResAry, 0, sizeof(CHG_POLICY_STRUCT)*GUN_DC_MAX_NUM);
-	memset(g_resAry, 0, sizeof(CHG_POLICY_STRUCT)*GUN_DC_MAX_NUM);
-}
-
 
 /*
 * *******************************************************************************
@@ -998,7 +839,7 @@ int Matrix_SetGroupSta(int grpId, int sta)//lhm: 提供操作变量g_group的接
 	}
 	else
 	{
-		grpId = grpId - 1;//lhm: 从这里可以看出，当策略模式是MATRIX2MATRIX（12个模块）时，对称系数只能是1
+		grpId = grpId - 1;//lhm: 从这里可以看出，当策略模式是MATRIX2MATRIX时，对称系数只能是1（12个模块）
 		g_group[grpId].sta = sta;
 	}
 
@@ -1009,7 +850,6 @@ void MatrixPrint(CHG_POLICY_RES_STRUCT res, char *string)
 {
 	char tempStr[1024] = {0};
 
-//	strcat(string, "*******************************************************\n\r");
 	if (res.result == POLICY_OK)
 	{
 		strcat(string, "POLICY_OK\n\r");
