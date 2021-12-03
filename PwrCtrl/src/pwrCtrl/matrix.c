@@ -41,7 +41,6 @@
 * *******************************************************************************
 */
 
-//#define 	PRINT
 static 		CHG_POLICY_STRUCT 		g_oldResAry[GUN_DC_MAX_NUM] = {0};
 static 		CHG_POLICY_STRUCT 		g_resAry[GUN_DC_MAX_NUM] = {0};
 
@@ -459,7 +458,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 	int 					startAddr, endAddr;
 
 	memcpy(g_oldResAry, g_resAry, sizeof(CHG_POLICY_STRUCT)*GUN_DC_MAX_NUM);		// 备份上次的分配结果
-	for (i = 0; i < g_init.gunNum; i++)//lhm: 所有枪的策略置零重整（g_init.gunNum不能超过2）
+	for (i = 0; i < g_init.gunNum; i++)//lhm: g_resAry = {0} + ChgStopDo中SW = {0}（改变策略算法需要重初始化）
 	{
 		g_resAry[i].gunId = i + 1;
 		g_resAry[i].gunRes = CHANGE_NO;
@@ -480,8 +479,8 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 		endAddr = groupNum;
 	}
 
-	if ((g_resAry[gunid].groupNum == 0) && (g_resAry[(gunid+1)%2].groupNum == 0))//lhm: 另一把枪空闲，gunId发起充电请求（gunId之前也空闲）
-	{
+	if ((g_resAry[gunid].groupNum == 0) && (g_resAry[(gunid+1)%2].groupNum == 0))//lhm: 1、另一把枪空闲，gunId发起充电请求（gunId之前也空闲）
+	{	
 		if (chg.pwrNeed > groupNum/2 * g_init.groupPwr)	// 一定会用到另外半边模块
 		{
 			startAddr = 0;
@@ -509,7 +508,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 	}
 	else
 	{
-		if ((g_resAry[gunid].groupNum > 0) && (g_resAry[(gunid+1)%2].groupNum == 0))//lhm: 另一把枪空闲，gunId充电需求发生改变
+		if ((g_resAry[gunid].groupNum > 0) && (g_resAry[(gunid+1)%2].groupNum == 0))//lhm: 2、另一把枪空闲，gunId充电需求发生改变
 		{
 			if (chg.pwrNeed > groupNum/2 * g_init.groupPwr)	// 一定会用到另外半边模块
 			{
@@ -523,11 +522,14 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 
 			j = g_resAry[gunid].groupNum;
 			for (i = startAddr; i < endAddr; i++)	//lhm: 轮询模块，检查其是否是原来的（groupNum），没有则添加进去
-													//lhm: 应该不用这么麻烦，可以通过判断endAddr大小来决定是否添加另外半边的模块Id
+													//lhm: 如果是情况1的代码，那么即使没有用到另外半边的模块，addGroupNum也不为0（显然不对）
 			{
 				if (g_group[i].sta == 0)//lhm: 0代表正常，1代表失败
 				{
-					for (k = 0; k < g_resAry[gunid].groupNum; k++)
+					for (k = 0; k < g_resAry[gunid].groupNum; k++)	//lhm: 主要是筛选出另外半边的模块（如果中间继电器闭合的话）并添加
+																	//lhm: 另外半边可能是startAddr = 0，也可能是startAddr = groupNum / 2
+																	//lhm: 所以通过for循环筛选出已经存在的模块是有必要的
+																	//lhm: 因为不知道是几号枪，对应的是那个半边
 					{
 						if ((i+1) == g_resAry[gunid].groupId[k])	// 说明已经存在
 						{
@@ -536,7 +538,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 					}
 
 					DEBUG("k = %d, groupNum = %d, i = %d", k, g_resAry[gunid].groupNum, i);
-					if (k == g_resAry[gunid].groupNum)		// 不存在，需要添加进去
+					if (k == g_resAry[gunid].groupNum)		// 不存在，需要添加进去//lhm: 模块i已经在groupId[]里面，不需要添加
 					{
 						g_resAry[gunid].groupNum++;
 						g_resAry[gunid].groupId[j] = i+1;
@@ -552,7 +554,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 		else
 		{
 			if (g_resAry[(gunid+1)%2].pwrMax <= groupNum/2 * g_init.groupPwr)	// 说明中间继电器未闭合
-			//lhm: 另一把枪不空闲，但只用到自己那半边的模块
+			//lhm: 3、另一把枪不空闲，但只用到自己那半边的模块
 			{
 				j = 0;
 				for (i = startAddr; i < endAddr; i++)//lhm: gunId只能用自己半边的模块
@@ -569,7 +571,7 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 
 				g_resAry[gunid].pwrMax = g_resAry[gunid].groupNum * g_init.groupPwr;
 			}
-			else//lhm: 另一把枪不空闲，且用了所有的模块
+			else//lhm: 4、另一把枪不空闲，且用了所有的模块
 			{
 				j = 0;
 				k = 0;
@@ -601,11 +603,12 @@ static void HandStart(CHG_POLICY_NEED_STRUCT chg)
 				gunid= (gunid+1) % 2;
 				g_resAry[gunid].pwrMax = g_resAry[gunid].groupNum * g_init.groupPwr;//lhm: 另外半边的最大功率
 				g_resAry[gunid].relayNum = 1;
-				g_resAry[gunid].relayId[0] = 1;
+				g_resAry[gunid].relayId[0] = 1;//lhm: 另外半边是切出（先切出再切入），所以把中间继电器（pdu）给另外半边的模块
 				g_resAry[gunid].relaySW[0][0] = 0;//lhm: 中间继电器断开
 			}
 		}
 	}
+
 
 	for (i = 0; i < g_init.gunNum; i++)
 	{
@@ -664,8 +667,11 @@ static void HandStop(CHG_POLICY_NEED_STRUCT chg)
 	g_resAry[gunid].gunRes = CHANGE_OUT;
 	g_resAry[gunid].pwrMax = 0;
 	g_resAry[gunid].groupNum = 0;
-	g_resAry[gunid].relayNum = g_oldResAry[gunid].relayNum;
-	memcpy(g_resAry[gunid].relayId, g_oldResAry[gunid].relayId, sizeof(unsigned int)*PDU_MAX_NUM);
+	//lhm: 原来的继电器操作内容（断开或闭合，0 / 1）不置零，但没有关系，因为它们不会再被使用，直到groupNum != 0（新的充电策略分配）
+
+	g_resAry[gunid].relayNum = g_oldResAry[gunid].relayNum;//lhm: 原来relayNum连接模块需要操作的继电器数量，现在断开模块同样也需要该数量的继电器
+	memcpy(g_resAry[gunid].relayId, g_oldResAry[gunid].relayId, sizeof(unsigned int)*PDU_MAX_NUM);//lhm: 需要操作的继电器Id也是原来的
+
 	g_resAry[gunid].addGrpNum = 0;
 	g_resAry[gunid].freeGrpNum = g_oldResAry[gunid].groupNum;
 	memcpy(g_resAry[gunid].freeGrpId, g_oldResAry[gunid].groupId, sizeof(unsigned int)*GROUP_MAX_NUM);

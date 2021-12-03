@@ -1984,10 +1984,8 @@ static void PwrCtrlDeal()
 
 		FlushOtherInfo();					// 不断的刷新一些外部数据//lhm: 唯一调用FlushOtherInfo()地方
 		//lhm: 前端AC接触器的断开与闭合；
-		//lhm: 更新每把枪的电压电流输出，更新每把枪各自的桩端最大功率EVSEwrMax；
+		//lhm: 更新每把枪的电压电流输出，更新每把枪各自的桩端最大功率EVSEwrMax（各把枪的模块连接使用情况---matrix接口返回的策略分配结果）；
 		//lhm: 检查每把枪连接的各个模块故障，如果有故障则 “SetChgStopReason(i, stopReason)”;
-
-		//lhm: 该函数的执行依据主要是---“是否是EMC急停（相关变量改变），各把枪的模块连接使用情况（matrix接口返回的策略分配结果）”
 	}
 
 	gunId++;
